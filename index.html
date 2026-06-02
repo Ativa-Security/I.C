@@ -502,12 +502,14 @@ function fbError(e){const c=e&&e.code||'';const m={
   'auth/too-many-requests':'Muitas tentativas. Tente mais tarde.','auth/network-request-failed':'Falha de conexão.'};
   return m[c]||('Erro: '+(e&&e.message||e));}
 function setLoginMode(mode){
-  registerMode=(mode==='first');
+  registerMode=(mode==='register');
   document.getElementById('lfName').style.display=registerMode?'flex':'none';
   document.getElementById('lfPass2').style.display=registerMode?'flex':'none';
-  document.getElementById('loginBtn').textContent=registerMode?'Criar conta de administrador':'Entrar';
-  document.getElementById('loginSub').textContent=registerMode?'Primeiro acesso · crie o administrador':'Ativa Security · Acesso restrito';
-  document.getElementById('loginSwitch').innerHTML='';
+  document.getElementById('loginBtn').textContent=registerMode?'Criar conta':'Entrar';
+  document.getElementById('loginSub').textContent='Ativa Security · Acesso restrito';
+  document.getElementById('loginSwitch').innerHTML=registerMode
+    ? 'Já tem conta? <button onclick="setLoginMode(\'login\')">Entrar</button>'
+    : 'Primeiro acesso ou novo head? <button onclick="setLoginMode(\'register\')">Criar conta</button>';
   loginErr('');
 }
 function showLogin(){document.getElementById('login').classList.remove('hidden');setTimeout(()=>document.getElementById('liEmail').focus(),60);}
@@ -524,15 +526,15 @@ async function submitLogin(){
       if(!name){throw {message:'Informe seu nome.'};}
       if(pass.length<6){throw {message:'A senha precisa ter ao menos 6 caracteres.'};}
       if(pass!==pass2){throw {message:'As senhas não conferem.'};}
-      const all=await _db.collection('users').get();
-      const role=all.empty?'admin':'gestor';
       const cred=await _auth.createUserWithEmailAndPassword(email,pass);
       await cred.user.updateProfile({displayName:name});
+      let role='gestor';
+      try{const all=await _db.collection('users').get(); if(all.empty) role='admin';}catch(e){}
       await _db.collection('users').doc(cred.user.uid).set({uid:cred.user.uid,name,email,role});
     } else {
       await _auth.signInWithEmailAndPassword(email,pass);
     }
-  }catch(e){ loginErr(fbError(e)); btn.disabled=false; setLoginMode(registerMode?'first':'login'); }
+  }catch(e){ loginErr(fbError(e)); btn.disabled=false; setLoginMode(registerMode?'register':'login'); }
 }
 async function fetchProfile(uid){
   for(let i=0;i<6;i++){
@@ -562,14 +564,7 @@ function initFirebaseAuth(){
     } else {
       currentUser=null; if(_unsub){_unsub();_unsub=null;}
       document.getElementById('login').classList.remove('hidden');
-      let first=false; try{const all=await _db.collection('users').get(); first=all.empty;}catch(e){}
-      setLoginMode(first?'first':'login');
-      if(first){
-        document.getElementById('liName').value='Henrique Collinetti';
-        document.getElementById('liEmail').value='henrique.collinetti@ativait.com.br';
-        document.getElementById('liPass').value='';
-        document.getElementById('liPass2').value='';
-      } else { document.getElementById('liEmail').value=''; document.getElementById('liPass').value=''; }
+      setLoginMode('login');
       showLogin();
     }
   });
