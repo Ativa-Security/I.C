@@ -59,6 +59,10 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 .hero h1{font-size:24px;font-weight:700;letter-spacing:-.03em;line-height:1.2;margin-bottom:8px}
 .hero p{font-size:13px;color:var(--text2);max-width:520px;line-height:1.6}
 
+.sector-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;padding:12px 16px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);border-radius:var(--r2)}
+.sector-lab{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent2)}
+.sector-bar .seg button{font-size:13px;padding:8px 18px}
+.sector-hint{margin-left:auto;font-size:12px;color:var(--text3)}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
 .stat-card{background:rgba(15,23,42,0.5);backdrop-filter:blur(12px);border:1px solid rgba(37,99,235,0.14);border-radius:var(--r2);padding:16px 20px;transition:border-color .2s}
 .stat-card:hover{border-color:rgba(37,99,235,0.32)}
@@ -66,8 +70,7 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 .stat-label{font-size:12px;color:var(--text2);margin-top:5px;display:flex;align-items:center;gap:6px}
 .stat-dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 
-.section-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}
-.section-title{font-size:16px;font-weight:600}
+.section-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px}.section-title{font-size:16px;font-weight:600}
 .tab-group{display:flex;background:rgba(10,16,33,0.5);border:1px solid rgba(37,99,235,0.15);border-radius:var(--r);padding:3px;gap:2px;flex-wrap:wrap}
 .tab-btn{padding:7px 14px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s}
 .tab-btn:hover{color:var(--text)}
@@ -318,10 +321,19 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
       <p>Some ou retire pontos da sua equipe, sempre com motivo, peso e autor registrados. Cada lançamento pode ser editado ou removido sem perder o histórico.</p>
     </div>
 
+    <div class="sector-bar">
+      <span class="sector-lab">Setor</span>
+      <div class="seg" id="segSector">
+        <button class="on" data-s="Técnico" onclick="setSector('Técnico')">🔧 Técnico</button>
+        <button data-s="Comercial" onclick="setSector('Comercial')">💼 Comercial</button>
+      </div>
+      <span class="sector-hint" id="sectorHint"></span>
+    </div>
+
     <div class="stats" id="stats"></div>
 
     <div class="section-row">
-      <div class="section-title">Equipe</div>
+      <div class="section-title" id="sectionTitle">Equipe · Técnico</div>
       <div class="tab-group">
         <button class="tab-btn active" id="tabTeam" onclick="setView('team')">👥 Funcionários</button>
         <button class="tab-btn" id="tabTime" onclick="setView('timeline')">🕑 Linha do tempo</button>
@@ -332,7 +344,8 @@ html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--t
 
     <div class="addbar" id="addbar">
       <input id="newName" placeholder="Nome do funcionário">
-      <input id="newRole" placeholder="Cargo / setor (opcional)">
+      <input id="newRole" placeholder="Cargo / função (opcional)">
+      <select class="catsel" id="newSector" style="min-width:140px"><option value="Técnico">🔧 Técnico</option><option value="Comercial">💼 Comercial</option></select>
       <button class="btn btn-accent" onclick="addEmployee()"><span style="font-size:16px">+</span> Adicionar</button>
     </div>
 
@@ -457,6 +470,20 @@ const DEF_UP=[['Meta batida',3],['Iniciativa proativa',2],['Bom atendimento',1],
 const DEF_DOWN=[['Atraso',1],['Erro operacional',2],['Não seguiu procedimento',2],['Falta sem aviso',5],['Atendimento ruim',2],['Descumpriu prazo',3]];
 let state={employees:[],history:[],config:{}};
 let view='team', modalCtx=null, selectedCat='', reportEmp='all';
+const SECTORS=['Técnico','Comercial'];
+let activeSector='Técnico';
+function empSector(e){return e.sector||'Técnico';}
+function sectorEmps(){return state.employees.filter(e=>empSector(e)===activeSector);}
+function sectorEmpIds(){return new Set(sectorEmps().map(e=>e.id));}
+function sectorHistory(){const ids=sectorEmpIds();return state.history.filter(h=>ids.has(h.empId));}
+function setSector(s){
+  activeSector=s;
+  [...document.querySelectorAll('#segSector button')].forEach(b=>b.className=b.dataset.s===s?'on':'');
+  document.getElementById('sectionTitle').textContent='Equipe · '+s;
+  const ns=document.getElementById('newSector'); if(ns) ns.value=s;
+  filters.emp='all'; reportEmp='all';
+  render();
+}
 let filters={type:'all',period:'all',cat:'all',emp:'all'};
 let tempUp=[],tempDown=[];
 
@@ -602,10 +629,12 @@ function applyFilters(list){const cut=periodCutoff();return list.filter(h=>{
 function addEmployee(){
   const name=document.getElementById('newName').value.trim();
   const role=document.getElementById('newRole').value.trim();
+  const sector=(document.getElementById('newSector').value)||activeSector;
   if(!name){document.getElementById('newName').focus();return;}
-  state.employees.unshift({id:uid(),name,role,score:0});
+  state.employees.unshift({id:uid(),name,role,sector,score:0});
   document.getElementById('newName').value='';document.getElementById('newRole').value='';
-  save();render();
+  save();
+  if(sector!==activeSector){ setSector(sector); } else { render(); }
 }
 function delEmployee(id){
   const emp=state.employees.find(e=>e.id===id);if(!emp)return;
@@ -613,6 +642,12 @@ function delEmployee(id){
   state.employees=state.employees.filter(e=>e.id!==id);
   state.history=state.history.filter(h=>h.empId!==id);
   save();render();
+}
+function moveSector(id){
+  const e=state.employees.find(x=>x.id===id);if(!e)return;
+  const cur=empSector(e), other=cur==='Técnico'?'Comercial':'Técnico';
+  if(!confirm('Mover "'+e.name+'" do setor '+cur+' para '+other+'?'))return;
+  e.sector=other; save(); render();
 }
 
 // ── launch / edit modal ──
@@ -693,7 +728,7 @@ function entryHtml(h,withName){
   </div>`;
 }
 function refreshCatSelect(){
-  const used=[...new Set(state.history.map(h=>h.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const used=[...new Set(sectorHistory().map(h=>h.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const sel=document.getElementById('catSel');
   sel.innerHTML='<option value="all">Todos os motivos</option>'+used.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
   if(used.indexOf(filters.cat)===-1&&filters.cat!=='all')filters.cat='all';
@@ -701,23 +736,26 @@ function refreshCatSelect(){
 }
 function refreshEmpSelect(){
   const sel=document.getElementById('empSel');
-  const emps=[...state.employees].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const emps=sectorEmps().slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
   sel.innerHTML='<option value="all">Todos os funcionários</option>'+emps.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('');
-  if(filters.emp!=='all'&&!state.employees.some(e=>e.id===filters.emp))filters.emp='all';
+  if(filters.emp!=='all'&&!emps.some(e=>e.id===filters.emp))filters.emp='all';
   sel.value=filters.emp;
 }
 function isCrit(score){const t=state.config.threshold;return t!=null&&t!==''&&score<t;}
 
 // ── render ──
 function render(){
-  const totMov=state.history.length;
-  const merits=state.history.filter(h=>h.delta>0).length;
-  const demerits=state.history.filter(h=>h.delta<0).length;
+  const emps=sectorEmps();
+  const hist=sectorHistory();
+  const totMov=hist.length;
+  const merits=hist.filter(h=>h.delta>0).length;
+  const demerits=hist.filter(h=>h.delta<0).length;
   document.getElementById('stats').innerHTML=`
-    <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${state.employees.length}</div><div class="stat-label"><span class="stat-dot" style="background:var(--accent2)"></span>Funcionários</div></div>
+    <div class="stat-card"><div class="stat-num" style="color:var(--accent2)">${emps.length}</div><div class="stat-label"><span class="stat-dot" style="background:var(--accent2)"></span>Funcionários</div></div>
     <div class="stat-card"><div class="stat-num" style="color:var(--green)">${merits}</div><div class="stat-label"><span class="stat-dot" style="background:var(--green)"></span>Méritos</div></div>
     <div class="stat-card"><div class="stat-num" style="color:var(--red)">${demerits}</div><div class="stat-label"><span class="stat-dot" style="background:var(--red)"></span>Deméritos</div></div>
     <div class="stat-card"><div class="stat-num">${totMov}</div><div class="stat-label"><span class="stat-dot" style="background:var(--text2)"></span>Lançamentos</div></div>`;
+  const sh=document.getElementById('sectorHint'); if(sh) sh.textContent=emps.length+' funcionário(s) no setor '+activeSector;
 
   const c=document.getElementById('content');
 
@@ -726,9 +764,9 @@ function render(){
   if(view==='reports'){ renderReports(c); return; }
 
   // team
-  if(state.employees.length===0){c.className='';c.innerHTML='<div class="empty-state"><h2>Nenhum funcionário ainda</h2><p>Adicione o primeiro funcionário acima para começar a registrar méritos e deméritos.</p></div>';return;}
+  if(emps.length===0){c.className='';c.innerHTML='<div class="empty-state"><h2>Nenhum funcionário no setor '+activeSector+'</h2><p>Adicione um funcionário acima (escolhendo o setor) para começar.</p></div>';return;}
   c.className='grid';
-  c.innerHTML=state.employees.map(emp=>{
+  c.innerHTML=emps.map(emp=>{
     const cls=emp.score>0?'pos':emp.score<0?'neg':'zero';
     const crit=isCrit(emp.score);
     const logs=state.history.filter(h=>h.empId===emp.id);
@@ -736,8 +774,11 @@ function render(){
     return `<div class="card ${crit?'crit':''}">
       <div class="card-head">
         <div class="who"><div class="avatar">${esc(initials(emp.name))}</div>
-          <div style="min-width:0"><div class="nm">${esc(emp.name)}</div>${emp.role?`<div class="rl">${esc(emp.role)}</div>`:''}</div></div>
-        <button class="del" title="Remover" onclick="delEmployee('${emp.id}')">🗑</button>
+          <div style="min-width:0"><div class="nm">${esc(emp.name)}</div><div class="rl">${emp.role?esc(emp.role)+' · ':''}<span style="color:var(--accent2)">${esc(empSector(emp))}</span></div></div></div>
+        <div style="display:flex;gap:2px">
+          <button class="del" title="Mover para o outro setor" onclick="moveSector('${emp.id}')">↔</button>
+          <button class="del" title="Remover" onclick="delEmployee('${emp.id}')">🗑</button>
+        </div>
       </div>
       <div class="score-row"><div class="score ${cls}">${emp.score>0?'+':''}${emp.score}</div><div class="score-lbl">pontos</div></div>
       ${crit?'<div class="crit-badge">⚠ Zona crítica</div>':''}
@@ -753,12 +794,13 @@ function render(){
 
 function renderTimeline(c){
   refreshCatSelect();refreshEmpSelect();
-  const totMov=state.history.length;
-  const filtered=applyFilters(state.history);
+  const base=sectorHistory();
+  const totMov=base.length;
+  const filtered=applyFilters(base);
   const active=filters.type!=='all'||filters.period!=='all'||filters.cat!=='all'||filters.emp!=='all';
   document.getElementById('fclear').style.display=active?'inline':'none';
   document.getElementById('fcount').textContent=active?`${filtered.length} de ${totMov}`:`${totMov} lançamentos`;
-  if(totMov===0){c.className='';c.innerHTML='<div class="empty-state"><h2>Sem lançamentos ainda</h2><p>Os ajustes de pontos aparecerão aqui em ordem cronológica.</p></div>';return;}
+  if(totMov===0){c.className='';c.innerHTML='<div class="empty-state"><h2>Sem lançamentos no setor '+activeSector+'</h2><p>Os ajustes de pontos deste setor aparecerão aqui em ordem cronológica.</p></div>';return;}
   if(filtered.length===0){c.className='';c.innerHTML='<div class="empty-state"><h2>Nada encontrado</h2><p>Nenhum lançamento corresponde aos filtros selecionados.</p></div>';return;}
   c.className='timeline';let html='',lastDay='';
   filtered.forEach(h=>{const dl=dayLabel(h.ts);if(dl!==lastDay){html+=`<div class="day-sep">${dl}</div>`;lastDay=dl;}html+=entryHtml(h,true);});
@@ -767,8 +809,9 @@ function renderTimeline(c){
 
 function renderRanking(c){
   c.className='';
-  if(state.employees.length===0){c.innerHTML='<div class="empty-state"><h2>Sem funcionários</h2><p>Adicione funcionários para ver o ranking.</p></div>';return;}
-  const rows=state.employees.map(e=>{
+  const emps=sectorEmps();
+  if(emps.length===0){c.innerHTML='<div class="empty-state"><h2>Sem funcionários no setor '+activeSector+'</h2><p>Adicione funcionários para ver o ranking.</p></div>';return;}
+  const rows=emps.map(e=>{
     const hs=state.history.filter(h=>h.empId===e.id);
     return {e,m:hs.filter(h=>h.delta>0).length,d:hs.filter(h=>h.delta<0).length,n:hs.length};
   }).sort((a,b)=>b.e.score-a.e.score);
@@ -777,7 +820,7 @@ function renderRanking(c){
   const statusOf=s=>{ if(isCrit(s))return ['⚠ Zona crítica','var(--red)','var(--red-bg)'];
     if(s>0)return ['Positivo','var(--green)','var(--green-bg)']; if(s<0)return ['Negativo','var(--amber)','var(--amber-bg)'];
     return ['Neutro','var(--text2)','var(--gray-bg)']; };
-  c.innerHTML=`<div class="panel"><div class="panel-h">🏆 Ranking da equipe</div>
+  c.innerHTML=`<div class="panel"><div class="panel-h">🏆 Ranking · ${activeSector}</div>
     <table class="rk-table">
       <thead><tr><th style="width:44px">#</th><th>Funcionário</th><th>Méritos</th><th>Deméritos</th><th>Pontuação</th><th style="width:160px">Saldo</th><th>Status</th></tr></thead>
       <tbody>${rows.map((r,i)=>{
@@ -799,14 +842,15 @@ function renderRanking(c){
 
 function renderReports(c){
   c.className='';
-  if(state.history.length===0){c.innerHTML='<div class="empty-state"><h2>Sem dados para relatórios</h2><p>Registre lançamentos para ver a evolução e o resumo por motivo.</p></div>';return;}
-  const emps=[...state.employees].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const hist=sectorHistory();
+  if(hist.length===0){c.innerHTML='<div class="empty-state"><h2>Sem dados no setor '+activeSector+'</h2><p>Registre lançamentos para ver a evolução e o resumo por motivo.</p></div>';return;}
+  const emps=sectorEmps().slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
   const opt='<option value="all">Todos os funcionários</option>'+emps.map(e=>`<option value="${esc(e.id)}" ${reportEmp===e.id?'selected':''}>${esc(e.name)}</option>`).join('');
 
   // reason summary
   const sum=(pos)=>{
     const m={};
-    state.history.filter(h=>pos?h.delta>0:h.delta<0).forEach(h=>{const k=h.category||'(sem motivo)';if(!m[k])m[k]={count:0,pts:0};m[k].count++;m[k].pts+=Math.abs(h.delta);});
+    hist.filter(h=>pos?h.delta>0:h.delta<0).forEach(h=>{const k=h.category||'(sem motivo)';if(!m[k])m[k]={count:0,pts:0};m[k].count++;m[k].pts+=Math.abs(h.delta);});
     return Object.entries(m).map(([k,v])=>({k,...v})).sort((a,b)=>b.count-a.count);
   };
   const up=sum(true), down=sum(false);
@@ -833,10 +877,12 @@ function renderReports(c){
 
 function buildChart(){
   const W=820,H=320,PL=46,PR=18,TP=18,BP=40;
-  const hist=[...state.history].sort((a,b)=>a.ts-b.ts);
+  const secEmps=sectorEmps();
+  const ids=new Set(secEmps.map(e=>e.id));
+  const hist=state.history.filter(h=>ids.has(h.empId)).sort((a,b)=>a.ts-b.ts);
   if(!hist.length) return '<div class="log-empty">Sem dados.</div>';
   const minTs=hist[0].ts, maxTs=hist[hist.length-1].ts; const span=(maxTs-minTs)||1;
-  const emps=(reportEmp==='all'?state.employees:state.employees.filter(e=>e.id===reportEmp));
+  const emps=(reportEmp==='all'?secEmps:secEmps.filter(e=>e.id===reportEmp));
   const series=emps.map((e,i)=>{
     const evs=hist.filter(h=>h.empId===e.id);
     let cum=0;const pts=[{ts:minTs,v:0}];
@@ -876,19 +922,19 @@ function buildChart(){
 }
 
 // ── export ──
-function exportRows(){return applyFilters(state.history).map(h=>({
+function exportRows(){return applyFilters(sectorHistory()).map(h=>({
   data:new Date(h.ts).toLocaleDateString('pt-BR'),
   hora:new Date(h.ts).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-  func:empName(h.empId), tipo:h.delta>0?'Mérito':'Demérito',
+  setor:activeSector, func:empName(h.empId), tipo:h.delta>0?'Mérito':'Demérito',
   pontos:(h.delta>0?'+':'')+h.delta, motivo:h.category||'', just:h.reason||'', gestor:h.author||''
 }));}
 function exportCSV(){
   const rows=exportRows();
-  const head=['Data','Hora','Funcionário','Tipo','Pontos','Motivo','Justificativa','Gestor'];
+  const head=['Data','Hora','Setor','Funcionário','Tipo','Pontos','Motivo','Justificativa','Gestor'];
   const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
-  const csv=[head.map(q).join(';')].concat(rows.map(r=>[r.data,r.hora,r.func,r.tipo,r.pontos,r.motivo,r.just,r.gestor].map(q).join(';'))).join('\r\n');
+  const csv=[head.map(q).join(';')].concat(rows.map(r=>[r.data,r.hora,r.setor,r.func,r.tipo,r.pontos,r.motivo,r.just,r.gestor].map(q).join(';'))).join('\r\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pontuacao_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='pontuacao_'+activeSector+'_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function exportPDF(){
@@ -899,7 +945,7 @@ function exportPDF(){
   <style>body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;padding:28px}h1{font-size:20px;margin:0 0 2px}.sub{color:#666;font-size:12px;margin-bottom:18px}
   table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;background:#0d2260;color:#fff;padding:8px 10px}td{padding:7px 10px;border-bottom:1px solid #e3e3e3}
   .num{font-weight:700}tr.p .num{color:#1c8a4f}tr.n .num{color:#c93636}tr:nth-child(even) td{background:#f6f7fb}</style></head>
-  <body><h1>Pontuação de Funcionários · Ativa Security</h1><div class="sub">Gerado em ${new Date().toLocaleString('pt-BR')} · ${rows.length} lançamento(s)</div>
+  <body><h1>Pontuação de Funcionários · Ativa Security</h1><div class="sub">Setor ${activeSector} · Gerado em ${new Date().toLocaleString('pt-BR')} · ${rows.length} lançamento(s)</div>
   <table><thead><tr><th>Data/Hora</th><th>Funcionário</th><th>Tipo</th><th>Pontos</th><th>Motivo</th><th>Justificativa</th><th>Gestor</th></tr></thead><tbody>${body||'<tr><td colspan=7>Nenhum lançamento.</td></tr>'}</tbody></table>
   </body></html>`);
   win.document.close();win.focus();setTimeout(()=>win.print(),400);
